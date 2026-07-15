@@ -8,7 +8,7 @@
   "client": "cd frontend && npm start",
   "dev": "cross-env NODE_ENV=development concurrently \"npm run server\" \"npm run client\"",
   "start": "cd backend && node server.js",
-  "prebuild": "cd frontend && npm install --include=dev",
+  "prebuild": "cd backend && npm install && cd ../frontend && npm install --include=dev",
   "build": "cd frontend && npm run build"
 },
   "keywords": [],
