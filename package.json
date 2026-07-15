@@ -4,11 +4,12 @@
   "description": "A simple starter project with:",
   "main": "index.js",
   "scripts": {
-  "setup": "npm install && cd backend && npm install && cd ../frontend && npm install",
   "server": "cd backend && node server.js",
   "client": "cd frontend && npm start",
   "start": "cross-env NODE_ENV=development concurrently \"npm run server\" \"npm run client\"",
+  "prebuild": "cd frontend && npm install --include=dev",
   "build": "cd frontend && npm run build"
+
 },
   "keywords": [],
   "author": "",
