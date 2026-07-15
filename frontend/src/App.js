@@ -1,95 +1,163 @@
-import React, { useState } from "react";
-import "./App.css";
+import React, { useState, useRef, useEffect } from 'react';
+import './App.css';
 
 function App() {
-  const [url, setUrl] = useState("");
-  const [format, setFormat] = useState("mp4");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState("");
+  const [sourceType, setSourceType] = useState('file');
+  const [file, setFile] = useState(null);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [format, setFormat] = useState('mp4');
+  const [quality, setQuality] = useState('high');
+  const [isConverting, setIsConverting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState('');
+  
+  const fileInputRef = useRef(null);
+  const eventSourceRef = useRef(null);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setLoading(true);
-    setError("");
-    setResult(null);
-
-    try {
-      const response = await fetch("http://localhost:5000/api/convert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, format }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to start the download.");
-      }
-
-      setResult(data);
-    } catch (err) {
-      setError(err.message || "Something went wrong.");
-    } finally {
-      setLoading(false);
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+      setStatus('');
+      setProgress(0);
     }
   };
 
+  const listenToProgress = () => {
+    // Open a connection to listen to backend progress broadcasts
+    eventSourceRef.current = new EventSource('http://localhost:5000/api/progress');
+    eventSourceRef.current.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      setProgress(data.progress);
+      if (data.status) setStatus(data.status);
+    };
+  };
+
+  const handleConvert = async () => {
+    if (sourceType === 'file' && !file) return setStatus('Please select a file.');
+    if (sourceType === 'link' && !videoUrl.trim()) return setStatus('Please enter a link.');
+
+    setIsConverting(true);
+    setProgress(0);
+    setStatus('Connecting to server...');
+
+    const formData = new FormData();
+    formData.append('format', format);
+    formData.append('quality', quality);
+
+    if (sourceType === 'file') {
+      formData.append('file', file);
+    } else {
+      formData.append('videoUrl', videoUrl.trim());
+    }
+
+    listenToProgress();
+
+    try {
+      const response = await fetch('http://localhost:5000/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Conversion failed');
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      
+      const defaultName = sourceType === 'file' ? file.name.split('.')[0] : 'download';
+      link.download = `${defaultName}_converted.${format}`;
+      
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      setProgress(100);
+      setStatus('Complete! Check your downloads.');
+    } catch (error) {
+      console.error(error);
+      setStatus('An error occurred during processing.');
+    } finally {
+      setIsConverting(false);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+    }
+  };
+
+  // Cleanup EventSource when component unmounts
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) eventSourceRef.current.close();
+    };
+  }, []);
+
   return (
-    <div className="app-shell">
-      <div className="hero-card">
-        <div className="hero-copy">
-          <span className="eyebrow">Smart media downloader</span>
-          <h1 className="hero-title">Download videos and audio from your favorite social platforms.</h1>
-          <p>
-            Paste a link from YouTube, Facebook, Instagram, TikTok, and get a ready-to-download MP4 or MP3 file.
-          </p>
+    <div className="App">
+      <h1>OmniConverter</h1>
 
-          <div className="platform-pills">
-            <span className="platform-pill">YouTube</span>
-            <span className="platform-pill">Facebook</span>
-            <span className="platform-pill">Instagram</span>
-            <span className="platform-pill">TikTok</span>
-          </div>
-        </div>
-
-        <form className="download-form" onSubmit={handleSubmit}>
-          <input
-            className="input"
-            type="text"
-            placeholder="Paste your link here"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            required
-          />
-
-          <select className="select" value={format} onChange={(e) => setFormat(e.target.value)}>
-            <option value="mp4">MP4 Video</option>
-            <option value="mp3">MP3 Audio</option>
-          </select>
-
-          <button className="button" type="submit" disabled={loading}>
-            {loading ? "Preparing download..." : "Download now"}
-          </button>
-        </form>
+      <div className="tabs">
+        <button 
+          className={`tab-btn ${sourceType === 'file' ? 'active' : ''}`}
+          onClick={() => { setSourceType('file'); setStatus(''); setProgress(0); }}
+          disabled={isConverting}
+        >
+          Local File
+        </button>
+        <button 
+          className={`tab-btn ${sourceType === 'link' ? 'active' : ''}`}
+          onClick={() => { setSourceType('link'); setStatus(''); setProgress(0); }}
+          disabled={isConverting}
+        >
+          Web Link
+        </button>
       </div>
-
-      {result && (
-        <div className="result-card">
-          <h3>Download queued successfully</h3>
-          <p>{result.message}</p>
-          <p>Platform: {result.platform}</p>
-          <p>Format: {result.format}</p>
-          <a className="result-link" href={result.downloadUrl} target="_blank" rel="noreferrer">
-            Open download link
-          </a>
+      
+      {sourceType === 'file' ? (
+        <div className={`upload-area ${file ? 'has-file' : ''}`} onClick={() => !isConverting && fileInputRef.current.click()}>
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="video/*" style={{ display: 'none' }} />
+          {file ? <p>Ready: <strong>{file.name}</strong></p> : <p>Click to browse local files</p>}
+        </div>
+      ) : (
+        <div className="url-input-container">
+          <input 
+            type="text" className="url-input"
+            placeholder="Paste ANY link (TikTok, X, YouTube...)"
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+            disabled={isConverting}
+          />
         </div>
       )}
 
-      {error && (
-        <div className="result-card">
-          <h3>We could not start the download</h3>
-          <p className="error">{error}</p>
-        </div>
+      <div className="row-controls">
+        <select value={format} onChange={(e) => setFormat(e.target.value)} disabled={isConverting}>
+          <option value="mp4">Format: MP4</option>
+          <option value="mp3">Format: MP3</option>
+          <option value="mkv">Format: MKV</option>
+          <option value="avi">Format: AVI</option>
+        </select>
+
+        <select value={quality} onChange={(e) => setQuality(e.target.value)} disabled={isConverting}>
+          <option value="high">Quality: High</option>
+          <option value="medium">Quality: Medium</option>
+          <option value="low">Quality: Low</option>
+        </select>
+      </div>
+
+      <button className="convert-btn" onClick={handleConvert} disabled={isConverting || (sourceType === 'file' ? !file : !videoUrl.trim())}>
+        {isConverting ? 'Processing...' : 'Start Conversion'}
+      </button>
+
+      {/* Real-time Progress Bar */}
+      {(isConverting || progress > 0) && (
+        <>
+          <div className="progress-container">
+            <div className="progress-bar" style={{ width: `${progress}%` }}></div>
+          </div>
+          <div className="status-text">{status} {Math.round(progress)}%</div>
+        </>
       )}
     </div>
   );
