@@ -4,8 +4,12 @@
   "description": "A simple starter project with:",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "setup": "npm install && cd backend && npm install && cd ../frontend && npm install",
+  "server": "cd backend && node server.js",
+  "client": "cd frontend && npm start",
+  "start": "cross-env NODE_ENV=development concurrently \"npm run server\" \"npm run client\"",
+  "build": "cd frontend && npm run build"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -15,5 +19,9 @@
     "express": "^5.2.1",
     "fluent-ffmpeg": "^2.1.3",
     "multer": "^2.2.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0"
   }
 }
