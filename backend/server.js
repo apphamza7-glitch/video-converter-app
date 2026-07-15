@@ -24,7 +24,13 @@ const upload = multer({ dest: 'uploads/' });
 // Global variables to track progress for the frontend
 let currentProgress = 0;
 let currentStatus = '';
+// Serve static files from the React frontend app
+app.use(express.static(path.join(__dirname, '../frontend/build')));
 
+// Anything that doesn't match the API routes should serve the index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+});
 // Progress streaming endpoint
 app.get('/api/progress', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
