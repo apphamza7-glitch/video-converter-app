@@ -1,6 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 
+const isSupportedVideoUrl = (value) => {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) return false;
+
+  try {
+    const parsedUrl = new URL(trimmedValue);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) return false;
+
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const supportedHosts = ['youtube', 'youtu.be', 'twitter', 'x.com', 'tiktok', 'instagram', 'facebook', 'fb.watch', 'pinterest', 'pin.it'];
+
+    return supportedHosts.some((host) => hostname.includes(host));
+  } catch (error) {
+    return false;
+  }
+};
+
 function App() {
   const [sourceType, setSourceType] = useState('file');
   const [file, setFile] = useState(null);
@@ -35,6 +52,9 @@ function App() {
   const handleConvert = async () => {
     if (sourceType === 'file' && !file) return setStatus('Please select a file.');
     if (sourceType === 'link' && !videoUrl.trim()) return setStatus('Please enter a link.');
+    if (sourceType === 'link' && !isSupportedVideoUrl(videoUrl)) {
+      return setStatus('Please enter a valid supported video link (YouTube, TikTok, X, Pinterest, etc.).');
+    }
 
     setIsConverting(true);
     setProgress(0);
@@ -123,11 +143,17 @@ function App() {
         <div className="url-input-container">
           <input 
             type="text" className="url-input"
-            placeholder="Paste ANY link (TikTok, X, YouTube...)"
+            placeholder="Paste a link (TikTok, X, YouTube, Pinterest...)"
             value={videoUrl}
             onChange={(e) => setVideoUrl(e.target.value)}
             disabled={isConverting}
           />
+          <div className="platform-hints" aria-label="Supported platforms">
+            <span>📌 Pinterest</span>
+            <span>▶ YouTube</span>
+            <span>▶ TikTok</span>
+            <span>▶ X</span>
+          </div>
         </div>
       )}
 

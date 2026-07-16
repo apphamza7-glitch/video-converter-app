@@ -12,6 +12,23 @@ ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 const app = express();
 const port = process.env.PORT || 5000;
 
+const isSupportedVideoUrl = (value) => {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) return false;
+
+  try {
+    const parsedUrl = new URL(trimmedValue);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) return false;
+
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const supportedHosts = ['youtube', 'youtu.be', 'twitter', 'x.com', 'tiktok', 'instagram', 'facebook', 'fb.watch', 'pinterest', 'pin.it'];
+
+    return supportedHosts.some((host) => hostname.includes(host));
+  } catch (error) {
+    return false;
+  }
+};
+
 app.use(cors());
 app.use(express.json()); 
 
@@ -54,7 +71,8 @@ const applyQuality = (command, quality, isAudio) => {
 };
 
 app.post('/api/convert', upload.single('file'), async (req, res) => {
-  const { format = 'mp4', quality = 'high', videoUrl } = req.body;
+  const { format = 'mp4', quality = 'high', videoUrl, url } = req.body;
+  const incomingUrl = videoUrl || url;
   
   let inputSource;
   let originalName = 'video';
@@ -69,7 +87,11 @@ app.post('/api/convert', upload.single('file'), async (req, res) => {
       inputSource = req.file.path;
       originalName = req.file.originalname.split('.')[0];
       currentProgress = 20;
-    } else if (videoUrl) {
+    } else if (incomingUrl) {
+      if (!isSupportedVideoUrl(incomingUrl)) {
+        return res.status(400).send('Please provide a supported video URL (YouTube, TikTok, X, Pinterest, etc.).');
+      }
+
       isLink = true;
       currentStatus = 'Extracting video from link (supporting all platforms)...';
       currentProgress = 15;
@@ -77,8 +99,8 @@ app.post('/api/convert', upload.single('file'), async (req, res) => {
       originalName = `web_video_${Date.now()}`;
       inputSource = path.join(uploadDir, `temp_dl_${Date.now()}.mp4`);
       
-      // Let yt-dlp handle ANY link (TikTok, X, YouTube, Reddit, etc.)
-      await youtubedl(videoUrl, {
+      // Let yt-dlp handle supported links, including Pinterest URLs.
+      await youtubedl(incomingUrl, {
         output: inputSource,
         format: 'best',
       });
